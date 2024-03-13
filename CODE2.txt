@@ -1,0 +1,182 @@
+import java.io.*;
+import java.util.*;
+
+class TrieNode {
+    Map<Character, TrieNode> children = new HashMap<>();
+    boolean isEndOfWord;
+    int count;
+
+    public TrieNode() {
+        this.isEndOfWord = false;
+        this.count = 0;
+    }
+}
+
+public class WordCountWithFuzzySearch {
+
+    private static final int MAX_MEMORY_SIZE = 10 * 1024 * 1024; // 10 MB
+    private static final int MAX_LINE_LENGTH = 1024; // Maximum length of a line in the file
+
+    public static void main(String[] args) {
+        String inputFilePath = "large_text_file.txt";
+        String outputFilePath = "word_count_output.txt";
+
+        try {
+            externalSort(inputFilePath, outputFilePath);
+            Map<String, Integer> wordCountMap = loadSortedData(outputFilePath);
+            displayWordCount(wordCountMap);
+
+            // Fuzzy search example
+            String query = "speling"; // Query with a spelling issue
+            List<String> fuzzySearchResults = fuzzySearch(query, wordCountMap);
+            System.out.println("Fuzzy Search Results for \"" + query + "\": " + fuzzySearchResults);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void externalSort(String inputFilePath, String outputFilePath) throws IOException {
+        List<File> sortedChunks = new ArrayList<>();
+
+        try (BufferedReader br = new BufferedReader(new FileReader(inputFilePath))) {
+            String line;
+            int lineCount = 0;
+            List<String> lines = new ArrayList<>();
+
+            while ((line = br.readLine()) != null) {
+                lines.add(line);
+                lineCount += line.length();
+
+                if (lineCount >= MAX_MEMORY_SIZE) {
+                    sortedChunks.add(sortAndSaveChunk(lines));
+                    lines.clear();
+                    lineCount = 0;
+                }
+            }
+
+            if (!lines.isEmpty()) {
+                sortedChunks.add(sortAndSaveChunk(lines));
+            }
+        }
+
+        mergeSortedChunks(sortedChunks, outputFilePath);
+    }
+
+    private static File sortAndSaveChunk(List<String> lines) throws IOException {
+        Collections.sort(lines);
+
+        File chunkFile = File.createTempFile("chunk", ".txt");
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(chunkFile))) {
+            for (String line : lines) {
+                writer.write(line);
+                writer.newLine();
+            }
+        }
+
+        return chunkFile;
+    }
+
+    private static void mergeSortedChunks(List<File> sortedChunks, String outputFilePath) throws IOException {
+        PriorityQueue<BufferedReader> minHeap = new PriorityQueue<>(Comparator.comparing(WordCountWithFuzzySearch::readNextWord));
+        for (File chunk : sortedChunks) {
+            BufferedReader reader = new BufferedReader(new FileReader(chunk), MAX_LINE_LENGTH);
+            minHeap.add(reader);
+        }
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFilePath))) {
+            while (!minHeap.isEmpty()) {
+                BufferedReader reader = minHeap.poll();
+                String word = readNextWord(reader);
+                if (word != null) {
+                    int count = 1;
+                    while (reader.ready() && word.equals(reader.readLine())) {
+                        count++;
+                    }
+                    writer.write(word + ": " + count);
+                    writer.newLine();
+                }
+            }
+        }
+
+        // Close readers and delete temporary chunk files
+        for (BufferedReader reader : minHeap) {
+            reader.close();
+        }
+        for (File chunk : sortedChunks) {
+            chunk.delete();
+        }
+    }
+
+    private static String readNextWord(BufferedReader reader) {
+        try {
+            return reader.readLine();
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private static Map<String, Integer> loadSortedData(String filePath) throws IOException {
+        Map<String, Integer> wordCountMap = new TreeMap<>();
+
+        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(": ");
+                String word = parts[0];
+                int count = Integer.parseInt(parts[1]);
+                wordCountMap.put(word, count);
+            }
+        }
+
+        return wordCountMap;
+    }
+
+    private static void displayWordCount(Map<String, Integer> wordCountMap) {
+        for (Map.Entry<String, Integer> entry : wordCountMap.entrySet()) {
+            System.out.println(entry.getKey() + ": " + entry.getValue());
+        }
+    }
+
+    private static List<String> fuzzySearch(String query, Map<String, Integer> wordCountMap) {
+        List<String> results = new ArrayList<>();
+        TrieNode root = buildTrie(wordCountMap);
+
+        fuzzySearch(query, root, "", results);
+
+        return results;
+    }
+
+    private static TrieNode buildTrie(Map<String, Integer> wordCountMap) {
+        TrieNode root = new TrieNode();
+
+        for (Map.Entry<String, Integer> entry : wordCountMap.entrySet()) {
+            insertWord(root, entry.getKey(), entry.getValue());
+        }
+
+        return root;
+    }
+
+    private static void insertWord(TrieNode root, String word, int count) {
+        TrieNode current = root;
+        for (char ch : word.toCharArray()) {
+            current.children.putIfAbsent(ch, new TrieNode());
+            current = current.children.get(ch);
+        }
+        current.isEndOfWord = true;
+        current.count = count;
+    }
+
+    private static void fuzzySearch(String query, TrieNode node, String currentWord, List<String> results) {
+        if (node.isEndOfWord) {
+            results.add(currentWord + ": " + node.count);
+        }
+
+        for (Map.Entry<Character, TrieNode> entry : node.children.entrySet()) {
+            char ch = entry.getKey();
+            TrieNode childNode = entry.getValue();
+
+            fuzzySearch(query, childNode, currentWord + ch, results);
+        }
+    }
+}
+
