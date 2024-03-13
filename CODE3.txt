@@ -1,0 +1,72 @@
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+
+class Product {
+    private String name;
+    private String description;
+    private String category;
+    // Add other product details as needed
+
+    public Product(String name, String description, String category) {
+        this.name = name;
+        this.description = description;
+        this.category = category;
+    }
+
+    // Getters and setters for other details
+
+    @Override
+    public String toString() {
+        return "Product{" +
+                "name='" + name + '\'' +
+                ", description='" + description + '\'' +
+                ", category='" + category + '\'' +
+                '}';
+    }
+}
+
+class ProductCatalog {
+    private Map<String, List<Product>> categoryMap;
+
+    public ProductCatalog() {
+        this.categoryMap = new HashMap<>();
+    }
+
+    public void addProduct(Product product) {
+        categoryMap.computeIfAbsent(product.getCategory(), k -> new LinkedList<>()).add(product);
+    }
+
+    public List<Product> searchProducts(String searchTerm) {
+        List<Product> result = new LinkedList<>();
+
+        for (List<Product> productList : categoryMap.values()) {
+            for (Product product : productList) {
+                if (product.getName().contains(searchTerm) ||
+                        product.getDescription().contains(searchTerm) ||
+                        product.getCategory().contains(searchTerm)) {
+                    result.add(product);
+                }
+            }
+        }
+
+        return result;
+    }
+}
+
+public class ProductConfigurationSystem {
+    public static void main(String[] args) {
+        // Example usage
+        ProductCatalog productCatalog = new ProductCatalog();
+
+        // Adding products to the catalog
+        productCatalog.addProduct(new Product("Laptop", "Powerful laptop with high-end specs", "Electronics"));
+        productCatalog.addProduct(new Product("Book", "Bestselling novel", "Books"));
+        productCatalog.addProduct(new Product("Headphones", "Noise-canceling headphones", "Electronics"));
+
+        // Searching for products
+        List<Product> searchResults = productCatalog.searchProducts("Electronics");
+        System.out.println("Search Results: " + searchResults);
+    }
+}
